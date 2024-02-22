@@ -9,6 +9,8 @@ import threading
 import json
 
 
+
+
 row = [0b10000000,0b01000000,0b00100000,0b00010000,0b00001000,0b00000100,0b00000010,0b00000001]
 #col = [0b0101011100010111,0b0101000100010001,0b0101000100010001,0b0101000100010001,0b0101010100010101,0b0101010100010101,0b0101010100010101,0b0111011101110111]
 #col = [0x00,0x00,0b0010000000000000,0x00,0x00,0x00,0x00,0x00]
@@ -26,9 +28,14 @@ class Point:
 left_eye_point = Point(0, 0, 0)
 right_eye_point = Point(0, 0, 0)
 
-def line_3d(point1, point2):
-    x1, y1, z1 = point1.x, point1.y, point1.z
-    x2, y2, z2 = point2.x, point2.y, point2.z
+def defalut_mode():
+     # either coords of eyes or light source is not detected
+    col = [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]
+    refresh_display(col)
+
+def line_3d(point_light, point_left_eye):
+    x1, y1, z1 = point_light.x, point_light.y, point_light.z
+    x2, y2, z2 = point_left_eye.x, point_left_eye.y, point_left_eye.z
     def point_on_line(t):
         x = x1+t*(x2-x1)
         y = y1+t*(y2-y1)
@@ -60,21 +67,30 @@ def socket_server():
             print(f"Received 3D point from client: {point}")
             
             # Process the 3D point here
-            point1 = Point(point['x'], point['y'], point['z'])
-            point2 = left_eye_point
-            #  connect two points
-            line_function = line_3d(point1, point2)
-            if point1.y != point2.y:
-                t = point1.y / (point1.y - point2.y)
+            point_light = Point(point['x'], point['y'], point['z'])
+            if point_light.x == 0 and point_light.y == 0 and point_light.z == 0:
+                defalut_mode()
+                continue
+            point_left_eye = left_eye_point
+            point_right_eye = right_eye_point
 
+            #  connect two points 2 times
+            line_function_left = line_3d(point_light, point_left_eye)
+            line_function_right = line_3d(point_light, point_right_eye)
+            if point_light.y != point_left_eye.y and point_light.y != point_right_eye.y:
+                t_left = point_light.y / (point_light.y - point_left_eye.y)
+                t_right = point_light.y / (point_light.y - point_right_eye.y)
             else:
-               continue
-            point_on_plane = line_function(t)
+                defalut_mode()
+                continue
+
+            point_on_plane_left = line_function_left(t_left)
+            point_on_plane_right = line_function_right(t_right)
+
             
-            print(point_on_plane)
+            print("Left Point"+point_on_plane_left)
+            print("Right Point"+point_on_plane_right)
             
-            response = {"status": "Point received"}
-            # client_socket.sendall(json.dumps(response).encode('utf-8'))
 
         except ConnectionResetError:
             print("Connection was lost")
@@ -83,19 +99,31 @@ def socket_server():
     client_socket.close()
     server_socket.close()
     
-    metric_x = round(point_on_plane[0] * 100 / 2.54 * (-1), 0)
-    metric_z = round(point_on_plane[2] * 100 / 2.54, 0) 
+    metric_x_left = round(point_on_plane_left[0] * 100 / 2.54 * (-1), 0)
+    metric_z_left = round(point_on_plane_left[2] * 100 / 2.54, 0)
+    metric_x_right = round(point_on_plane_right[0] * 100 / 2.54 * (-1), 0)
+    metric_z_right = round(point_on_plane_right[2] * 100 / 2.54, 0)
+
     col = [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]
     
     for i in range(0, 16):
         for j in range(0,8):
-            if(i == metric_x + 8 and j == metric_z + 4):
+            if(i == metric_x_left + 8 and j == metric_z_left + 4):
                 col[j] = 0b1111111111111111 & (1 << (15-i))
                 break
+
+    for i in range(0, 16):
+        for j in range(0,8):
+            if(i == metric_x_right + 8 and j == metric_z_right + 4):
+                col[j] = 0b1111111111111111 & (1 << (15-i))
+                break
+    
+
     refresh_display(col)
     
     print("----------------------------------------------------------")
-    print(metric_x, metric_z)
+    print("Left Coords:"+metric_x_left, metric_z_left)
+    print("Right Coords:"+metric_x_right, metric_z_right)
     print("----------------------------------------------------------")                
                 
     
@@ -105,8 +133,8 @@ threading.Thread(target=socket_server).start()
 
 chan_list = [7, 11, 12]
 
-IMAGE_WIDTH = 240
-IMAGE_HEIGHT = 320
+IMAGE_WIDTH = 320
+IMAGE_HEIGHT = 240
 REF_DISTANCE = 2.80
 REF_WIDTH = 2.87 
 DISTANCE = -0.6
@@ -152,28 +180,6 @@ def  refresh_display(col):
     time.sleep(0.00001)
     
 
-SETTING = {
-    "A": (False, False, True),
-    "B": (True, False, True),
-    "C": (False, True, False),
-    "D": (True, True, False),
-    "DISABLE": (False, True, True)
-}
-
-def init_camera(): 
-    '''
-        gp.setwarnings(False)
-        #gp.setmode(gp.BOARD)
-        chan_list = [7, 11, 12]
-        # Setup the stack layer 1 board
-        #gp.setup(chan_list, gp.OUT)
-        gp.output(chan_list, True)
-        gp.output(chan_list, False)
-        set_camera("DISABLE")
-        '''
-    pass
-
-
 def cal_Point(image_width, image_height, ref_width, ref_distance, img_x, img_y):
     ratio = image_width / image_height
     c_x = image_width / 2.0
@@ -185,12 +191,7 @@ def cal_Point(image_width, image_height, ref_width, ref_distance, img_x, img_y):
     y_ref = y_norm * factor * DISTANCE
     return Point(x_ref, DISTANCE-0.1, -y_ref-0.12)
 
-def set_camera(CAM) :
-    '''
-        gp.output(chan_list, SETTING[CAM])
-    '''
-    pass
-# init_camera()
+
 left_eye = (0, 0)
 right_eye = (0, 0)
 
@@ -207,7 +208,7 @@ face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, min_
 def get_face_mesh(image):
     results = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
     if not results.multi_face_landmarks:
-        return image, (0, 0), (0, 0)
+        return image, (0,0), (0,0)
 
     annotated_image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)  # Fix: Convert image channel from RGBA to RGB
 
@@ -254,8 +255,9 @@ while True:
     start = time.perf_counter()
     image = picam2.capture_array()
     image = cv2.flip(image, 0)
-    image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-    image = cv2.resize(image, (240, 320))
+    image = cv2.flip(image, 1)
+    #image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    image = cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT))
 
 
     image, left_eye, right_eye = get_face_mesh(image)
@@ -267,7 +269,9 @@ while True:
     cv2.imshow('frame', image)
 
     
-
+    if left_eye == (0, 0) and right_eye == (0, 0):
+        defalut_mode()
+        continue
     left_eye_point = cal_Point(IMAGE_WIDTH, IMAGE_HEIGHT, REF_WIDTH, REF_DISTANCE, left_eye[0], left_eye[1])
     right_eye_point = cal_Point(IMAGE_WIDTH, IMAGE_HEIGHT, REF_WIDTH, REF_DISTANCE, right_eye[0], right_eye[1])
     
