@@ -1,3 +1,8 @@
+'''
+Code for controlling LED Matrix.
+'''
+
+
 import RPi.GPIO as GPIO
 import time
 import threading
