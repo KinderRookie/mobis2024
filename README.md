@@ -1,6 +1,6 @@
 # mobis2024
 Hyundai MOBIS 2024 SW Hackerton Team GLGU's Github Repository
-# Topic: Adaptive Wind Shield: Controlling modulized PNLD panel on vehicle's windshield for protecting driver's eye from hard light.
+# Topic: Adaptive Wind Shield: Controlling modulized PNLC panel on vehicle's windshield for protecting driver's eye from hard light.
 
 
 ### GLGU.py
